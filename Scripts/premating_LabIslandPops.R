@@ -1,7 +1,7 @@
 # Graham C. McLaughlin
 # Created: 09-01-2023
-# Modified: 09-01-2023
-# Analysis of August 26th experiment characterizing RI between our four Lab Island Pops
+# Modified: 11-28-2023
+# Analysis of August 26th and October 23rd experiment characterizing RI between our four Lab Island Pops
 # ----
 
 # Libraries:
@@ -19,11 +19,25 @@ library(ggpubr)
 
 ## Data Exploration/Management:
 
-ncsi <- read.table("Data/LabIslandPops_premating_R.txt",
+ncsi_b1 <- read.table("LabIslandPops_premating_R.txt", # August Experiment
                    header = TRUE,
                    comment.char = "",
                    na.strings = "#N/A")
-head(ncsi)
+ncsi_b1$block <- 1
+tail(ncsi_b1)
+
+
+ncsi_b2 <- read.table("oct23_block/premating_oct23.txt", # October Experiment
+                      header = TRUE,
+                      comment.char = "",
+                      na.strings = "#N/A")
+ncsi_b2$block <- 2
+tail(ncsi_b2)
+
+# Combine blocks:
+ncsi <- bind_rows(ncsi_b1,ncsi_b2)
+ncsi$id <- seq(1,800,1)
+tail(ncsi)
 
 # Let's first define our factors:
 ncsi$female <- factor(ncsi$female,
@@ -36,34 +50,97 @@ head(ncsi) # Factors defined and relabelled
 
 # Let's add a cross column to make comparisons easier:
 ncsi$cross <- paste0(ncsi$female, "_", ncsi$male)
-head(ncsi) # We now have a cross column
+dim(ncsi) # We now have a cross column
 
 # Trimming out the vials lost due to experimental failure that won't be used for analysis of any measures:
 dim(ncsi) # 400 observations before trimming
-ncsi <- subset(ncsi, failure == 0)
+ncsi <- subset(ncsi, failure != 1)
 dim(ncsi) # Lost 52 to experimental failure (most of those were due to lack of virgins)
 
 ## Looking first at Willingness To Mate: -----
 # Starting with just the simplest model assessing the effect of cross on probability of mating
 # We will add in the effect of male and female and any interaction terms later.
-hist(ncsi$mated)
+# Starting with block 1:
+hist(ncsi$mated[ncsi$block == 1]) # Binomial distribution of course
 
-num_mated <- ncsi %>%
-  group_by(cross) %>%
-  summarise(count = sum(mated))
+glm_willingness_b1 <- glm(mated ~ cross + male + female,
+                       family = binomial,
+                       data = ncsi[ncsi$block == 1,])
 
-glm_willingness <- glm(mated ~ male*female,
+glm_willingness_b1
+summary(glm_willingness_b1)
+anova(glm_willingness_b1, test = "Chisq")
+emmeans(glm_willingness_b1, ~cross, type = "response", level = 0.69)
+pairs(emmeans(glm_willingness_b1, ~cross, type = "response"), adjust = "none")
+
+plot_frame_b1 <- as.data.frame(emmeans(glm_willingness_b1, ~cross, type = "response", level = 0.69))
+
+plot_frame_b1 %>%
+  arrange(male) %>%
+  mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
+  ggplot(aes(x = male, y = female)) +
+  geom_raster(aes(fill = prob)) +
+  scale_fill_gradient(low = "grey100", high = "red") +
+  labs(x = "Male Genotype", y = "Female Genotype", fill = "Probability\nof\nMating") +
+  theme_bw() +
+  scale_x_discrete(position = "top")
+
+# Now onto block 2:
+hist(ncsi$mated[ncsi$block == 2])
+
+glm_willingness_b2 <- glm(mated ~ cross + male + female,
+                          family = binomial,
+                          data = ncsi[ncsi$block == 2,])
+
+glm_willingness_b2
+summary(glm_willingness_b2)
+anova(glm_willingness_b2, test = "Chisq")
+emmeans(glm_willingness_b2, ~cross, type = "response", level = 0.69)
+pairs(emmeans(glm_willingness_b2, ~cross, type = "response"), adjust = "none")
+
+plot_frame_b2 <- as.data.frame(emmeans(glm_willingness_b2, ~cross, type = "response", level = 0.69))
+
+plot_frame_b2 %>%
+  arrange(male) %>%
+  mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
+  ggplot(aes(x = male, y = female)) +
+  geom_raster(aes(fill = prob)) +
+  scale_fill_gradient(low = "grey100", high = "red") +
+  labs(x = "Male Genotype", y = "Female Genotype", fill = "Probability\nof\nMating") +
+  theme_bw() +
+  scale_x_discrete(position = "top")
+
+# Combined block analysis
+glmer_willingness <- glmer(mated ~ cross + male + female + (1|block),
                        family = binomial,
                        data = ncsi)
 
-glm_willingness
-summary(glm_willingness)
-anova(glm_willingness)
-emmeans(glm_willingness, ~cross, type = "response", level = 0.69)
-pairs(emmeans(glm_willingness, ~cross, type = "response"), adjust = "none")
+glmer_willingness
+summary(glmer_willingness)
+anova(glmer_willingness)
+emmeans(glmer_willingness, ~cross, type = "response", level = 0.69)
+pairs(emmeans(glmer_willingness, ~cross, type = "response"), adjust = "none")
+
+plot_frame <- as.data.frame(emmeans(glmer_willingness, ~cross, type = "response", level = 0.69))
+
+plot_frame %>%
+  arrange(male) %>%
+  mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
+  ggplot(aes(x = male, y = female)) +
+  geom_raster(aes(fill = prob)) +
+  scale_fill_gradient(low = "grey100", high = "red") +
+  labs(x = "Male Genotype", y = "Female Genotype", fill = "Probability\nof\nMating") +
+  theme_bw() +
+  scale_x_discrete(position = "top")
+
+# Comparing blocks:
+plot(plot_frame_b1$prob, plot_frame_b2$prob, type = "p",
+     xlab = "Block 1 Proportion Mated", ylab = "Block 2 Proportion Mated")
+cor(plot_frame_b1$prob,plot_frame_b2$prob) # Strongly correlated
+
 # We aren't interested in all of the above pairwise comparisons so this is not too helpful.
 
-plot_frame <- as.data.frame(emmeans(glm_willingness, ~cross, type = "response", level = 0.69))
+plot_frame <- as.data.frame(emmeans(glmer_willingness, ~cross + block, type = "response", level = 0.69))
 
 ggplot(data = plot_frame, aes(x = cross, y = prob, color = male)) +
   geom_point(shape = 21) +
@@ -83,8 +160,7 @@ plot_frame %>%
   theme_bw() +
   scale_x_discrete(position = "top")
 
-# It's easier to visualize and model if we only look at plots of the within-pop cross versus a single across population cross. We can then run a model with male/female and interaction effects:
-
+# It's easier to visualize and model if we only look at plots of the within-pop cross versus a single across population cross. We can then run a model with male/female and interaction effects: ---------
 ## Starting with Dahomey versus IV:
 IV_Dhm <- subset(ncsi, cross %in% c("IV_IV", "Dhm_Dhm", "IV_Dhm", "Dhm_IV"))
 
@@ -265,9 +341,48 @@ ggplot(data = si, aes(x = cross, y = i_index)) +
   scale_y_continuous(name = "Joint Sexual Isolation Index (I)", limits = c(0,1.25), breaks = seq(0,1.25,0.2)) +
   scale_x_discrete(name = "Population Pair") +
   theme_classic()
+##-------------
 
-## Moving on to Latency To Mate:
-head(ncsi, n = 100)
+## Moving on to LATENCY TO MATE:
+## Let's read in our data frames again to avoid any mistakes
+
+ncsi_b1 <- read.table("LabIslandPops_premating_R.txt", # August Experiment
+                      header = TRUE,
+                      comment.char = "",
+                      na.strings = "#N/A")
+ncsi_b1$block <- 1
+tail(ncsi_b1)
+
+
+ncsi_b2 <- read.table("oct23_block/premating_oct23.txt", # October Experiment
+                      header = TRUE,
+                      comment.char = "",
+                      na.strings = "#N/A")
+ncsi_b2$block <- 2
+tail(ncsi_b2)
+
+# Combine blocks:
+ncsi <- bind_rows(ncsi_b1,ncsi_b2)
+ncsi$id <- seq(1,800,1)
+tail(ncsi)
+
+# Let's first define our factors:
+ncsi$female <- factor(ncsi$female,
+                      levels = c("iv","lhm","dhm","val"),
+                      labels = c("IV", "LHm", "Dhm", "Val"))
+ncsi$male <- factor(ncsi$male,
+                    levels = c("iv","lhm","dhm","val"),
+                    labels = c("IV","LHm","Dhm","Val"))
+head(ncsi) # Factors defined and relabelled
+
+# Let's add a cross column to make comparisons easier:
+ncsi$cross <- paste0(ncsi$female, "_", ncsi$male)
+dim(ncsi) # We now have a cross column
+
+ncsi <- subset(ncsi, failure == 0)
+head(ncsi)
+dim(ncsi)
+
 ncsi$failure == TRUE # Double checking that all failures are removed:
 
 # Setting all did not mate (dnm) vials to 180:
@@ -278,6 +393,13 @@ View(ncsi) #Vials 113 and 248 have negative latencies even though they are coded
 # as having mated, so lets just remove them for now
 ncsi <- subset(ncsi, id != c(113, 248))
 ncsi$latency<0 # negative latency observations removed
+
+# BLOCK 1 LATENCY TO MATE:
+coxph_latency_b1 <- coxph(formula = Surv(latency, mated) ~ male*female, data = ncsi[ncsi$block == 1,])
+coxph_latency_b1
+summary(coxph_latency_b1)
+anova(coxph_latency_b1)
+emmeans(coxph_latency, ~male+female, type = "response")
 
 # Running a model assessing differences in latency based on cross:
 coxph_latency <- coxph(formula = Surv(latency, mated) ~ male*female, data = ncsi)
