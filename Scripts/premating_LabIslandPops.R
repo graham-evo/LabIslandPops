@@ -77,7 +77,7 @@ dim(ncsi) # Lost 52 to experimental failure, most from block 1
 hist(ncsi$mated[ncsi$block == 1]) # Binomial distribution of course
 hist(ncsi$mated[ncsi$block == 2]) # Binomial distribution of course
 
-glm_willingness_b1 <- glm(mated ~ cross + male + female,
+glm_willingness_b1 <- glm(mated ~ cross + male + female, #These male and female terms are only here so that we can plot the emmeans df by male and female later
                        family = binomial,
                        data = ncsi[ncsi$block == 1,])
 
@@ -87,21 +87,16 @@ anova(glm_willingness_b1, test = "Chisq")
 emmeans(glm_willingness_b1, ~cross, type = "response", level = 0.69)
 pairs(emmeans(glm_willingness_b1, ~cross, type = "response"), adjust = "none")
 
-plot_frame_b1 <- as.data.frame(emmeans(glm_willingness_b1, ~cross, type = "response", level = 0.69))
-
-plot_frame_b1 %>%
-  arrange(male) %>%
-  mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
-  ggplot(aes(x = male, y = female)) +
-  geom_raster(aes(fill = prob)) +
-  scale_fill_gradient(low = "grey100", high = "red") +
-  labs(x = "Male Genotype", y = "Female Genotype", fill = "Probability\nof\nMating") +
-  theme_bw() +
-  scale_x_discrete(position = "top")
+# Modeling male/female effects:
+glm_willingness_interaction <- glm(mated ~ male*female, 
+                                   family = binomial(),
+                                   data = ncsi[ncsi$block == 1,])
+glm_willingness_interaction
+summary(glm_willingness_interaction)
+anova(glm_willingness_interaction, test = "Chisq")
 
 # Now onto block 2:
-hist(ncsi$mated[ncsi$block == 2])
-
+# Modelling the effect of cross
 glm_willingness_b2 <- glm(mated ~ cross + male + female,
                           family = binomial,
                           data = ncsi[ncsi$block == 2,])
@@ -112,8 +107,17 @@ anova(glm_willingness_b2, test = "Chisq")
 emmeans(glm_willingness_b2, ~cross, type = "response", level = 0.69)
 pairs(emmeans(glm_willingness_b2, ~cross, type = "response"), adjust = "none")
 
-plot_frame_b2 <- as.data.frame(emmeans(glm_willingness_b2, ~cross, type = "response", level = 0.69))
+# Modelling male and female effects
+glm_willingness_interaction <- glm(mated ~ male*female, 
+                                   family = binomial(),
+                                   data = ncsi[ncsi$block == 2,])
+glm_willingness_interaction
+summary(glm_willingness_interaction)
+anova(glm_willingness_interaction, test = "Chisq")
 
+# Plotting willingness to mate:
+plot_frame_b1 <- as.data.frame(emmeans(glm_willingness_b1, ~cross + male + female, type = "response", level = 0.69))
+plot_frame_b2 <- as.data.frame(emmeans(glm_willingness_b2, ~cross + male + female, type = "response", level = 0.69))
 plot_frame_b2 %>%
   arrange(male) %>%
   mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
@@ -128,6 +132,10 @@ plot_frame_b2 %>%
 glmer_willingness <- glmer(mated ~ cross + male + female + (1|block),
                        family = binomial,
                        data = ncsi)
+glmer_willingness_alt <- glmer(mated ~ cross + (1|block),
+                           family = binomial,
+                           data = ncsi)
+anova(glmer_willingness_alt, glmer_willingness_null) # same models, just checking to make sure male and female terms don't mess up model fit
 
 glmer_willingness
 summary(glmer_willingness)
@@ -135,9 +143,9 @@ anova(glmer_willingness)
 emmeans(glmer_willingness, ~cross, type = "response", level = 0.69)
 pairs(emmeans(glmer_willingness, ~cross, type = "response"), adjust = "none")
 
-plot_frame <- as.data.frame(emmeans(glmer_willingness, ~cross, type = "response", level = 0.69))
+plot_frame_combined_blocks <- as.data.frame(emmeans(glmer_willingness, ~cross + male + female, type = "response", level = 0.69))
 
-plot_frame %>%
+plot_frame_combined_blocks %>%
   arrange(male) %>%
   mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
   ggplot(aes(x = male, y = female)) +
@@ -152,6 +160,9 @@ plot(plot_frame_b1$prob, plot_frame_b2$prob, type = "p",
      xlab = "Block 1 Proportion Mated", ylab = "Block 2 Proportion Mated",
      xlim = c(0,1), ylim = c(0,1))
 cor(plot_frame_b1$prob,plot_frame_b2$prob) # Super inconsistent results between blocks
+
+lm_block <- lm(mated ~ cross*block, data = ncsi)
+summary(lm_block) # Which crosses differed in willingness to mate between blocks?
 
 # Different way of visualizing inconsistencies between blocks
 ggplot() +
@@ -263,7 +274,7 @@ ncsi$failure == TRUE # Double checking that all failures are removed:
 ncsi$latency[ncsi$dnm==1] <- 180
 head(ncsi, n =100)
 ncsi$latency < 0
-View(ncsi) #Vials 113 and 248 have negative latencies even though they are coded
+#View(ncsi) #Vials 113 and 248 have negative latencies even though they are coded
 # as having mated, so lets just remove them for now
 ncsi <- subset(ncsi, latency > 0)
 ncsi$latency<0 # negative latency observations removed
@@ -271,7 +282,7 @@ ncsi$latency<0 # negative latency observations removed
 # BLOCK 1 Latency to mate analysis:
 coxph_latency_b1 <- 
   coxph(formula = Surv(latency, mated)
-                          ~ cross + male*female,
+                          ~ cross + male + female,
                           data = ncsi[ncsi$block == 1,])
 coxph_latency_b1
 summary(coxph_latency_b1)
@@ -281,7 +292,7 @@ emmeans(coxph_latency_b1, ~cross, type = "response")
 # BLOCK 2 LATENCY TO MATE:
 coxph_latency_b2 <- 
   coxph(formula = Surv(latency, mated)
-        ~ cross + male*female,
+        ~ cross + male + female,
         data = ncsi[ncsi$block == 2,])
 coxph_latency_b2
 summary(coxph_latency_b2)
@@ -303,6 +314,17 @@ ggplot(data = ncsi, aes(x = cross, y = latency, fill = female)) +
 ggplot(data = ncsi, aes(x = cross, y = latency, fill = female)) +
   geom_boxplot()
 
+# Correlation between blocks:
+# for this we need to u
+
+latencyb1<-as.data.frame(emmeans(coxph_latency_b2, ~cross, type = "response"))
+latencyb2<-as.data.frame(emmeans(coxph_latency_b1, ~cross, type = "response"))
+ncsi_test <- inner_join(ncsi[ncsi$block==1,],ncsi[ncsi$block==2,], by = "id")
+plot(latencyb1$response,latencyb2$response[1:15], type = "p",
+     xlab = "Block 1 Latency", ylab = "Block 2 Latency")
+cor(latencyb1$response,latencyb2$response[1:15]) # Super inconsistent results between blocks
+
+
 # Heatmap
 test <- as.data.frame(aggregate(latency~male+female, data = ncsi, FUN = median))
 
@@ -323,7 +345,8 @@ test %>%
 ncsi <- subset(ncsi, mating_duration > 0)
 ncsi <- subset(ncsi, id != 436)
 ncsi$mating_duration > 0
-View(ncsi)
+#View(ncsi)
+head(ncsi, n = 400)
 dim(ncsi)
 
 hist(ncsi$mating_duration, breaks = 100)
@@ -331,6 +354,9 @@ hist(ncsi$mating_duration, breaks = 100)
 lm_mating_duration <- lm(mating_duration ~ cross, data = ncsi)
 summary(lm_mating_duration)
 anova(lm_mating_duration)
+plot(lm_mating_duration)
+boxplot(ncsi$mating_duration)
+
 
 ggplot(data = ncsi, aes(x = cross, y = mating_duration, fill = male)) +
   geom_boxplot() +

@@ -1,6 +1,6 @@
 # Graham C. McLaughlin
 # Date Created: 09-04-2023
-# Date Modified: 09-04-2023
+# Date Modified: 12-03-2023 - Added October block to analysis
 # Analysis of postmating egg counts and egg-adult-viability
 ## ----------
 
@@ -8,10 +8,27 @@ library(emmeans)
 library(tidyverse)
 
 # Read in egg count data
-pmpz <- read.table(file = "Data/LabIslandCrosses_Postmating_R.txt",
+pmpz_b1 <- read.table(file = "LabIslandCrosses_Postmating_R.txt", # September block
                    header = TRUE,
                    comment.char = "",
                    na.strings = "#N/A")
+head(pmpz_b1, n = 100)
+str(pmpz_b1) # eggs is a character for some reason, lets make it an integer
+pmpz_b1$eggs <- as.integer(pmpz_b1$eggs)
+dim(pmpz_b1)
+pmpz_b1$block <- 1
+
+pmpz_b2 <- read.table(file = "oct23_block/postmating_oct23.txt",
+                      header = TRUE,
+                      comment.char = "",
+                      na.strings = "#N/A")
+head(pmpz_b2)
+str(pmpz_b2)
+dim(pmpz_b2)
+pmpz_b2$block <- 2
+
+# Combining both blocks into a single data frame:
+pmpz <- bind_rows(pmpz_b1, pmpz_b2) # Progeny isn't in our first data frame which is why all progeny numbers coerced into NAs
 
 # Let's first define our factors:
 pmpz$female <- factor(pmpz$female,
@@ -20,7 +37,9 @@ pmpz$female <- factor(pmpz$female,
 pmpz$male <- factor(pmpz$male,
                     levels = c("iv","lhm","dhm","val"),
                     labels = c("IV","LHm","Dhm","Val"))
-head(ncsi) # Factors defined and relabelled
+head(pmpz) # Factors defined and relabelled
+dim(pmpz)
+str(pmpz)
 
 # Let's add a cross column to make comparisons easier:
 pmpz$cross <- paste0(pmpz$female, "_", pmpz$male)
@@ -28,32 +47,29 @@ head(pmpz) # We now have a cross column
 
 # Let's remove all of the rows where failure == 1, since these should be removed
 # from all downstream analyses.
-dim(pmpz) # 584 observations before trimming
+dim(pmpz) # 1220 observations before trimming
 pmpz <- subset(pmpz, failure != 1)
-dim(pmpz) # Lost 24 due to experimental failure
-
-str(pmpz) # eggs need to be a number
-pmpz$eggs <- as.integer(pmpz$eggs)
-str(pmpz)
+dim(pmpz) # Lost 48 due to experimental failure
 
 # Let's start by making a new data frame with total egg counts per vial across the 4 days
-cumulative_pmpz <- pmpz %>%
-  group_by(vial, cross, male, female) %>%
+cumulative_eggs <- pmpz %>%
+  group_by(vial, cross, male, female, block) %>%
   summarise(eggs = sum(eggs)) %>%
   ungroup()
 
 # And also remove any females for which less than 10 eggs were laid (assuming a non-successful mating)
-dim(cumulative_pmpz)
-cumulative_pmpz <- subset(cumulative_pmpz, eggs > 10)
-dim(cumulative_pmpz)
+dim(cumulative_eggs)
+pmpz <- subset(cumulative_eggs, eggs > 10)
+dim(cumulative_eggs)
 
 # Let's look at the egg count distributions of each of our crosses:
-egg_dist <- ggplot(data = cumulative_pmpz, aes(eggs, fill = cross)) +
+hist(cumulative_eggs$eggs, breaks = 100)
+egg_dist <- ggplot(data = cumulative_eggs, aes(eggs, fill = cross)) +
   geom_density() +
   facet_wrap(~cross)
 
 # Running a model looking at total eggs:
-total_eggs_lm <- lm(eggs ~ male*female, data = cumulative_pmpz)
+total_eggs_lm <- lm(eggs ~ cross + male + female, data = cumulative_eggs)
 summary(total_eggs_lm)
 anova(total_eggs_lm)
 
@@ -83,7 +99,7 @@ heatmap.df %>%
 
 # Day by day eggs:
 
-days_plotFrame <- as.data.frame (aggregate(eggs ~ cross+day, data = pmpz, FUN = summary)) #Produce our initial summary statistics of eggs laid per day across treatments
+days_plotFrame <- as.data.frame(aggregate(eggs ~ cross+day, data = pmpz, FUN = summary)) #Produce our initial summary statistics of eggs laid per day across treatments
 days_plotFrame$n <- aggregate(eggs ~ cross*day, data = pmpz, FUN = "length")[,3] #Get the sample size of each treatment per day
 days_plotFrame$var <- aggregate(eggs ~ cross*day, data = pmpz, FUN = "var")[,3] #Calculate the variance
 days_plotFrame$sd <- sqrt(days_plotFrame$var) #Standard deviation
@@ -91,7 +107,7 @@ days_plotFrame$se <- days_plotFrame$sd/sqrt(days_plotFrame$n) #Standard error or
 
 #Subset by population comparison:
 days_plotFrame <- subset(days_plotFrame, cross %in% c("IV_IV", "Dhm_Dhm", "IV_Dhm", "Dhm_IV"))
-days_plotFrame <- subset(days_plotFrame, cross %in% c("LHm-GFP_LHm-GFP", "Dhm_Dhm", "LHm-GFP_Dhm", "Dhm_LHm-GFP"))
+days_plotFrame <- subset(days_plotFrame, cross %in% c("LHm_LHm", "Dhm_Dhm", "LHm_Dhm", "Dhm_LHm"))
 days_plotFrame <- subset(days_plotFrame, cross %in% c("Val_Val", "Dhm_Dhm", "Val_Dhm", "Dhm_Val"))
 days_plotFrame <- subset(days_plotFrame, cross %in% c("IV_IV", "Val_Val", "IV_Val", "Val_IV"))
 
