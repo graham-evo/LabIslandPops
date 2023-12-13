@@ -82,8 +82,7 @@ glm_willingness_b1 <- glm(mated ~ cross + male + female, #These male and female 
                        data = ncsi[ncsi$block == 1,])
 
 glm_willingness_b1
-summary(glm_willingness_b1) # moderate effects but no obvious patterns
-anova(glm_willingness_b1, test = "Chisq")
+anova(glm_willingness_b1, test = "Chisq") # Differences of course, but not for comparisons of interest
 emmeans(glm_willingness_b1, ~cross, type = "response", level = 0.69)
 
 # Modeling male/female effects:
@@ -92,24 +91,18 @@ glm_willingness_interaction <- glm(mated ~ male*female,
                                    data = ncsi[ncsi$block == 1,])
 glm_willingness_interaction # Strong effect of female and male LHm plus interactions
 summary(glm_willingness_interaction)
-anova(glm_willingness_interaction, test = "Chisq")
+anova(glm_willingness_interaction, test = "Chisq") # male, female, and malexfemale effects
+
+emmeans(glm_willingness_interaction, ~female, type = "response")
+emmeans(glm_willingness_interaction, ~male, type = "response")
+pairs(emmeans(glm_willingness_interaction, ~male, type = "response"))
+
 
 # Let's plot block 1:
-plot_frame_b1 <- as.data.frame(emmeans(glm_willingness_b1, ~cross + male + female, type = "response", level = 0.69)) 
-plot_frame_b1 %>%
-  arrange(male) %>%
-  mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
-  ggplot(aes(x = male, y = female)) +
-  geom_raster(aes(fill = prob)) +
-  scale_fill_gradient(low = "grey100", high = "red") +
-  labs(x = "Male Genotype", y = "Female Genotype", fill = "Probability\nof\nMating") +
-  theme_bw() +
-  scale_x_discrete(position = "top")
-
-# Different way of visualizing differences:
 ggplot() +
   geom_errorbar(aes(x = cross, ymin = prob-SE, ymax = prob + SE), data = plot_frame_b1) +
   geom_point(data = plot_frame_b1, aes(x = cross, y = prob, color = male)) +
+  scale_y_continuous(limits = c(0,1)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
@@ -133,40 +126,42 @@ glm_willingness_interaction
 summary(glm_willingness_interaction) # LHm male and female effects disappear in block 2. Male DHm and Val drive the differences here
 anova(glm_willingness_interaction, test = "Chisq")
 
-# Plotting willingness to mate:
-plot_frame_b2 <- as.data.frame(emmeans(glm_willingness_b2, ~cross + male + female, type = "response", level = 0.69))
-plot_frame_b2 %>%
-  arrange(male) %>%
-  mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
-  ggplot(aes(x = male, y = female)) +
-  geom_raster(aes(fill = prob)) +
-  scale_fill_gradient(low = "grey100", high = "red") +
-  labs(x = "Male Genotype", y = "Female Genotype", fill = "Probability\nof\nMating") +
-  theme_bw() +
-  scale_x_discrete(position = "top")
+emmeans(glm_willingness_interaction, ~male, type = "response")
+emmeans(glm_willingness_interaction, ~female, type= "response")
+pairs(emmeans(glm_willingness_interaction, ~male, type = "response"))
 
-# Dot plot:
+# Plotting willingness block 2:
 ggplot() +
   geom_errorbar(aes(x = cross, ymin = prob-SE, ymax = prob + SE), data = plot_frame_b2) +
   geom_point(data = plot_frame_b2, aes(x = cross, y = prob, color = male)) +
+  scale_y_continuous(limits = c(0,1)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 # WILLINGNESS COMBINED BLOCK ANALYSIS
-glmer_willingness <- mixed(mated ~ cross + male + female + (1|block),
+glmer_willingness_combined <- mixed(mated ~ cross + male + female + (1|block),
                        method = "LRT",
                        data = ncsi)
-glmer_willingness_null <- mixed(mated ~ cross + (1|block),
+glmer_willingness__combined_null <- mixed(mated ~ cross + (1|block),
                            method = "LRT",
                            data = ncsi)
-anova(glmer_willingness, glmer_willingness_null) # same models, just checking to make sure male and female terms don't mess up model fit
+anova(glmer_willingness_combined, glmer_willingness__combined_null) # same models, just checking to make sure male and female terms don't mess up model fit
 
 # Looking at effect of cross:
-glmer_willingness
-summary(glmer_willingness)
-anova(glmer_willingness)
-emmeans(glmer_willingness, ~cross, type = "response", level = 0.69)
-pairs(emmeans(glmer_willingness, ~cross, type = "response"), adjust = "none")
+glmer_willingness_combined
+summary(glmer_willingness_combined)
+anova(glmer_willingness_combined)
+emmeans(glmer_willingness_combined, ~cross, type = "response", level = 0.69)
+pairs(emmeans(glmer_willingness_combined, ~cross, type = "response"), adjust = "none")
+
+plot_frame <- as.data.frame(emmeans(glmer_willingness_combined, ~cross, type = "response", level = 0.69))
+ggplot() +
+  geom_errorbar(aes(x = cross, ymin = emmean-SE, ymax = emmean + SE), data = plot_frame, width = 0) +
+  geom_point(data = plot_frame, aes(x = cross, y = emmean, color = male)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  facet_wrap(~block)
+
 
 # Looking at effect of male and female:
 glmer_willingness_interaction_null <- glm(mated ~ male*female,
@@ -176,36 +171,40 @@ glmer_willingness_interaction_alt <- mixed(mated ~ male*female + (1|block),
                                             method = "LRT",
                                             data = ncsi)
 anova(glmer_willingness_interaction_null, glmer_willingness_interaction_alt,
-      test = "Chisq") # Blocks differ by male female and interactions???
+      test = "Chisq")
+emmeans(glmer_willingness_interaction_alt, ~male, type = "response")
+emmeans(glmer_willingness_interaction_alt, ~female, type="response")
+pairs(emmeans(glmer_willingness_interaction_alt, ~male, type = "response"))
+pairs(emmeans(glmer_willingness_interaction_alt, ~female, type = "response"))
 
-#Comparing blocks
-plot_frame_combined_blocks <- as.data.frame(emmeans(glmer_willingness, ~cross + male + female, type = "response", level = 0.69))
 
-plot_frame_combined_blocks %>%
-  arrange(male) %>%
-  mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
-  ggplot(aes(x = male, y = female)) +
-  geom_raster(aes(fill = emmean)) +
-  scale_fill_gradient(low = "grey100", high = "red") +
-  labs(x = "Male Genotype", y = "Female Genotype", fill = "Probability\nof\nMating") +
-  theme_bw() +
-  scale_x_discrete(position = "top")
+plot_frame <- as.data.frame(emmeans(glmer_willingness_combined, ~cross + male + female, type = "response", level = 0.69))
+ggplot() +
+  geom_errorbar(aes(x = cross, ymin = emmean-SE, ymax = emmean + SE), data = plot_frame) +
+  geom_point(data = plot_frame, aes(x = cross, y = emmean, color = male)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 # Comparing blocks:
 plot(plot_frame_b1$prob, plot_frame_b2$prob, type = "p",
      xlab = "Block 1 Proportion Mated", ylab = "Block 2 Proportion Mated",
      xlim = c(0,1), ylim = c(0,1))
+abline()
+text(plot_frame_b1$prob, plot_frame_b2$prob, plot_frame_b1$cross, pos = 2)
+abline(reg = lm_block, col = "blue")
 cor(plot_frame_b1$prob,plot_frame_b2$prob) # Super inconsistent results between blocks
 
-lm_block <- lm(mated ~ cross*block, data = ncsi)
+lm_block <- lm(mated ~ cross, data = ncsi)
 summary(lm_block) # Which crosses differed in willingness to mate between blocks?
+anova(lm_block)
+emmeans(lm_block, ~cross, type="response")
 
 # Different way of visualizing inconsistencies between blocks
 ggplot() +
-  geom_point(data = plot_frame_b1, aes(x = cross, y = prob), color = "red") +
-  geom_point(data = plot_frame_b2, aes(x = cross, y = prob), color = "blue") +
-  geom_errorbar(aes(x = cross, ymin = prob-SE, ymax = prob + SE), data = plot_frame_b1) +
-  geom_errorbar(aes(x = cross, ymin = prob-SE, ymax = prob + SE), data = plot_frame_b2, color = "red") +
+  geom_errorbar(aes(x = cross, ymin = prob-SE, ymax = prob + SE), data = plot_frame_b1, width = 0) +
+  geom_errorbar(aes(x = cross, ymin = prob-SE, ymax = prob + SE), data = plot_frame_b2, color = "red", width = 0) +
+  geom_point(data = plot_frame_b1, aes(x = cross, y = prob, color = male)) +
+  geom_point(data = plot_frame_b2, aes(x = cross, y = prob, color = male)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
@@ -335,6 +334,15 @@ coxph_latency_b1_interaction # Strong effects of LHm males and females
 summary(coxph_latency_b1_interaction)
 anova(coxph_latency_b1_interaction)
 
+emmeans(coxph_latency_b1_interaction, ~male)
+pairs(emmeans(coxph_latency_b1_interaction, ~male))
+
+# Plotting Block 1:
+ggplot(data = ncsi[ncsi$block==1,], aes(x = cross, y = latency, fill = male)) +
+  geom_boxplot() +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
 # BLOCK 2 LATENCY TO MATE:
 # Effect of cross:
 coxph_latency_b2 <- 
@@ -353,6 +361,15 @@ coxph_latency_b2_interaction # Strong effects of male DHm and Val
 summary(coxph_latency_b2_interaction)
 anova(coxph_latency_b2_interaction)
 
+emmeans(coxph_latency_b2_interaction, ~male)
+pairs(emmeans(coxph_latency_b2_interaction, ~male))
+
+# Plotting block 2:
+ggplot(data = ncsi[ncsi$block==2,], aes(x = cross, y = latency, fill = male)) +
+  geom_boxplot() +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
 # Running a combined model:
 coxph_latency <- coxme(formula = Surv(latency, mated) ~ cross + (1|block), data = ncsi)
 coxph_latency
@@ -366,8 +383,10 @@ ggplot(data = ncsi, aes(x = cross, y = latency, fill = female)) +
   theme_bw()
 
 # Combined blocks
-ggplot(data = ncsi, aes(x = cross, y = latency, fill = female)) +
-  geom_boxplot()
+ggplot(data = ncsi, aes(x = cross, y = latency, fill = male)) +
+  geom_boxplot() +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 # Correlation between blocks:
 
@@ -377,19 +396,6 @@ ncsi_test <- inner_join(ncsi[ncsi$block==1,],ncsi[ncsi$block==2,], by = "id")
 plot(latencyb1$response,latencyb2$response[1:15], type = "p",
      xlab = "Block 1 Latency", ylab = "Block 2 Latency")
 cor(latencyb1$response,latencyb2$response[1:15]) # Super inconsistent results between blocks
-
-# Heatmap
-test <- as.data.frame(aggregate(latency~male+female, data = ncsi, FUN = median))
-
-test %>%
-  arrange(male) %>%
-  mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
-  ggplot(aes(x = male, y = female)) +
-  geom_raster(aes(fill = latency)) +
-  scale_fill_gradient(low = "grey100", high = "red") +
-  labs(x = "Male Genotype", y = "Female Genotype", fill = "Latency\n(min)") +
-  theme_bw() +
-  scale_x_discrete(position = "top")
 
 #-----------------
 # Mating Duration:
@@ -470,6 +476,10 @@ summary(lm_mating_duration_b1)
 lm_mating_duration_b1_interaction <- lm(mating_duration ~ male*female,
                             data = ncsi[ncsi$block==1,])
 summary(lm_mating_duration_b1_interaction) # Really strong male effectss of mating duration and strong LHm female effects of mating duration
+anova(lm_mating_duration_b1_interaction)
+
+emmeans(lm_mating_duration_b1_interaction, ~male)
+pairs(emmeans(lm_mating_duration_b1_interaction, ~male))
 
 # MATING DURATION BLOCK 2:
 # Effect of cross:
@@ -481,6 +491,9 @@ summary(lm_mating_duration_b2)
 lm_mating_duration_b2_interaction <- lm(mating_duration ~ male*female,
                                         data = ncsi[ncsi$block==2,])
 summary(lm_mating_duration_b2_interaction) # Really strong male effects of mating duration. Effect of LHm female disappeared from block 2
+anova(lm_mating_duration_b2_interaction)
+emmeans(lm_mating_duration_b2_interaction, ~male)
+pairs(emmeans(lm_mating_duration_b2_interaction, ~male))
 
 # Comparing blocks visually with boxplots:
 ggplot(data = ncsi, aes(x = cross, y = mating_duration, fill = male)) +
