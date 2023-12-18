@@ -21,6 +21,7 @@ library(ggpubr)
 library(gplots)
 library(reshape2)
 library(cowplot)
+library(tidyverse)
 ##---------------
 
 # DATA CLEANING/MANAGEMENT:
@@ -56,6 +57,8 @@ ncsi$male <- factor(ncsi$male,
                     levels = c("iv","lhm","dhm","val"),
                     labels = c("IV","LHm","Dhm","Val"))
 head(ncsi) # Factors leveled and re-labelled
+#Factor Colors:
+colors <- c("white","green","yellow","blue")
 
 # Let's add a cross column to make comparisons easier:
 ncsi$cross <- paste0(ncsi$female, "_", ncsi$male)
@@ -83,7 +86,7 @@ glm_willingness_b1 <- glm(mated ~ cross + male + female, #These male and female 
 
 glm_willingness_b1
 anova(glm_willingness_b1, test = "Chisq") # Differences of course, but not for comparisons of interest
-emmeans(glm_willingness_b1, ~cross, type = "response", level = 0.69)
+emmeans(glm_willingness_b1, ~cross + male + female, type = "response", level = 0.69)
 
 # Modeling male/female effects:
 glm_willingness_interaction <- glm(mated ~ male*female, 
@@ -95,17 +98,36 @@ anova(glm_willingness_interaction, test = "Chisq") # male, female, and malexfema
 
 emmeans(glm_willingness_interaction, ~female, type = "response")
 emmeans(glm_willingness_interaction, ~male, type = "response")
-pairs(emmeans(glm_willingness_interaction, ~male, type = "response"))
+pairs(emmeans(glm_willingness_interaction, ~female, type = "response"))
 
-
+plot_frame_b1 <- as.data.frame(emmeans(glm_willingness_b1, ~cross + male + female, type = "response", level = 0.69))
 # Let's plot block 1:
+# Dot plot:
 ggplot() +
-  geom_errorbar(aes(x = cross, ymin = prob-SE, ymax = prob + SE), data = plot_frame_b1) +
-  geom_point(data = plot_frame_b1, aes(x = cross, y = prob, color = male)) +
+  geom_errorbar(aes(x = female, ymin = prob-SE, ymax = prob + SE), data = plot_frame_b1, width = -.2) +
+  geom_point(data = plot_frame_b1, aes(x = female, y = prob, color = male)) +
   scale_y_continuous(limits = c(0,1)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
+# Profile plot:
+plot_frame_female <- as.data.frame(emmeans(glm_willingness_interaction, ~female, type = "response"))
+colnames(plot_frame_female)[1] <- "genotype"
+plot_frame_female$group <- "female"
+plot_frame_male <- as.data.frame(emmeans(glm_willingness_interaction, ~male, type = "response"))
+colnames(plot_frame_male)[1] <- "genotype"
+plot_frame_male$group <- "male"
+plot_frame <- bind_rows(plot_frame_female, plot_frame_male)
+
+ggplot(plot_frame, aes(x=genotype, y=prob, color = group, shape = group, group = group)) +
+  geom_errorbar(aes(ymin = prob - SE, ymax = prob + SE), width = 0.1) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  labs(x = "Genotype", y = "Probability of Mating") +
+  scale_color_manual(values = c("#bb4444","#55acee")) +
+  scale_shape_manual(values = c(15,16)) +
+  guides(shape = FALSE) +
+  theme_bw()
 # WILLINGESS BLOCK 2:
 # Modelling the effect of cross
 glm_willingness_b2 <- glm(mated ~ cross + male + female,
@@ -117,6 +139,8 @@ summary(glm_willingness_b2) # Not as many differences between crosses as block 1
 anova(glm_willingness_b2, test = "Chisq")
 emmeans(glm_willingness_b2, ~cross, type = "response", level = 0.69)
 pairs(emmeans(glm_willingness_b2, ~cross, type = "response"), adjust = "none")
+
+plot_frame_b2 <- as.data.frame(emmeans(glm_willingness_b2, ~cross, type = "response", level = 0.69))
 
 # Modelling male and female effects
 glm_willingness_interaction <- glm(mated ~ male*female, 
@@ -137,6 +161,25 @@ ggplot() +
   scale_y_continuous(limits = c(0,1)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+# Profile Plot:
+plot_frame_female <- as.data.frame(emmeans(glm_willingness_interaction, ~female, type = "response"))
+colnames(plot_frame_female)[1] <- "genotype"
+plot_frame_female$group <- "female"
+plot_frame_male <- as.data.frame(emmeans(glm_willingness_interaction, ~male, type = "response"))
+colnames(plot_frame_male)[1] <- "genotype"
+plot_frame_male$group <- "male"
+plot_frame <- bind_rows(plot_frame_female, plot_frame_male)
+
+ggplot(plot_frame, aes(x=genotype, y=prob, color = group, shape = group, group = group)) +
+  geom_errorbar(aes(ymin = prob - SE, ymax = prob + SE), width = 0.1) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  labs(x = "Genotype", y = "Probability of Mating") +
+  scale_color_manual(values = c("#bb4444","#55acee")) +
+  scale_shape_manual(values = c(15,16)) +
+  guides(shape = FALSE) +
+  theme_bw()
 
 # WILLINGNESS COMBINED BLOCK ANALYSIS
 glmer_willingness_combined <- mixed(mated ~ cross + male + female + (1|block),
@@ -159,8 +202,7 @@ ggplot() +
   geom_errorbar(aes(x = cross, ymin = emmean-SE, ymax = emmean + SE), data = plot_frame, width = 0) +
   geom_point(data = plot_frame, aes(x = cross, y = emmean, color = male)) +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-  facet_wrap(~block)
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 
 # Looking at effect of male and female:
@@ -172,18 +214,38 @@ glmer_willingness_interaction_alt <- mixed(mated ~ male*female + (1|block),
                                             data = ncsi)
 anova(glmer_willingness_interaction_null, glmer_willingness_interaction_alt,
       test = "Chisq")
+summary(glmer_willingness_interaction_alt)
 emmeans(glmer_willingness_interaction_alt, ~male, type = "response")
 emmeans(glmer_willingness_interaction_alt, ~female, type="response")
 pairs(emmeans(glmer_willingness_interaction_alt, ~male, type = "response"))
 pairs(emmeans(glmer_willingness_interaction_alt, ~female, type = "response"))
 
-
+# Dot plot:
 plot_frame <- as.data.frame(emmeans(glmer_willingness_combined, ~cross + male + female, type = "response", level = 0.69))
 ggplot() +
   geom_errorbar(aes(x = cross, ymin = emmean-SE, ymax = emmean + SE), data = plot_frame) +
   geom_point(data = plot_frame, aes(x = cross, y = emmean, color = male)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+# Profile plot:
+plot_frame_female <- as.data.frame(emmeans(glmer_willingness_interaction_alt, ~female, type = "response"))
+colnames(plot_frame_female)[1] <- "genotype"
+plot_frame_female$group <- "female"
+plot_frame_male <- as.data.frame(emmeans(glmer_willingness_interaction_alt, ~male, type = "response"))
+colnames(plot_frame_male)[1] <- "genotype"
+plot_frame_male$group <- "male"
+plot_frame <- bind_rows(plot_frame_female, plot_frame_male)
+
+ggplot(plot_frame, aes(x=genotype, y=emmean, color = group, shape = group, group = group)) +
+  geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  labs(x = "Genotype", y = "Probability of Mating") +
+  scale_color_manual(values = c("#bb4444","#55acee")) +
+  scale_shape_manual(values = c(15,16)) +
+  guides(shape = FALSE) +
+  theme_bw()
 
 # Comparing blocks:
 plot(plot_frame_b1$prob, plot_frame_b2$prob, type = "p",
@@ -332,17 +394,37 @@ coxph_latency_b1_interaction <- coxph(formula = Surv(latency, mated)
         data = ncsi[ncsi$block == 1,])
 coxph_latency_b1_interaction # Strong effects of LHm males and females
 summary(coxph_latency_b1_interaction)
-anova(coxph_latency_b1_interaction)
+anova(coxph_latency_b1_interaction, test = "Chisq")
 
 emmeans(coxph_latency_b1_interaction, ~male)
 pairs(emmeans(coxph_latency_b1_interaction, ~male))
+emmeans(coxph_latency_b1_interaction, ~female)
+pairs(emmeans(coxph_latency_b1_interaction, ~female))
 
 # Plotting Block 1:
-ggplot(data = ncsi[ncsi$block==1,], aes(x = cross, y = latency, fill = male)) +
+ggplot(data = ncsi[ncsi$block==1 & ncsi$latency != 180,], aes(x = cross, y = latency, fill = male)) +
   geom_boxplot() +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
+# Profile Plot:
+plot_frame_female <- as.data.frame(emmeans(coxph_latency_b1_interaction, ~female, type = "response"))
+colnames(plot_frame_female)[1] <- "genotype"
+plot_frame_female$group <- "female"
+plot_frame_male <- as.data.frame(emmeans(coxph_latency_b1_interaction, ~male, type = "response"))
+colnames(plot_frame_male)[1] <- "genotype"
+plot_frame_male$group <- "male"
+plot_frame <- bind_rows(plot_frame_female, plot_frame_male)
+
+ggplot(plot_frame, aes(x=genotype, y=response, color = group, shape = group, group = group)) +
+  geom_errorbar(aes(ymin = response - SE, ymax = response + SE), width = 0.1) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  labs(x = "Genotype", y = "Percent Mated") +
+  scale_color_manual(values = c("#bb4444","#55acee")) +
+  scale_shape_manual(values = c(15,16)) +
+  guides(shape = FALSE) +
+  theme_bw()
 # BLOCK 2 LATENCY TO MATE:
 # Effect of cross:
 coxph_latency_b2 <- 
@@ -365,28 +447,84 @@ emmeans(coxph_latency_b2_interaction, ~male)
 pairs(emmeans(coxph_latency_b2_interaction, ~male))
 
 # Plotting block 2:
-ggplot(data = ncsi[ncsi$block==2,], aes(x = cross, y = latency, fill = male)) +
+ggplot(data = ncsi[ncsi$block==2 & ncsi$latency != 180,], aes(x = cross, y = latency, fill = male)) +
   geom_boxplot() +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-# Running a combined model:
-coxph_latency <- coxme(formula = Surv(latency, mated) ~ cross + (1|block), data = ncsi)
-coxph_latency
-emmeans(coxph_latency, ~cross, type = "response")
-pairs(emmeans(coxph_latency, ~cross, type = "response"), adjust = "none")
+#Profile Plot:
+plot_frame_female <- as.data.frame(emmeans(coxph_latency_b2_interaction, ~female, type = "response"))
+colnames(plot_frame_female)[1] <- "genotype"
+plot_frame_female$group <- "female"
+plot_frame_male <- as.data.frame(emmeans(coxph_latency_b2_interaction, ~male, type = "response"))
+colnames(plot_frame_male)[1] <- "genotype"
+plot_frame_male$group <- "male"
+plot_frame <- bind_rows(plot_frame_female, plot_frame_male)
 
-# Block by block comparison plot:
-ggplot(data = ncsi, aes(x = cross, y = latency, fill = female)) +
-  geom_boxplot() +
-  facet_wrap(~block) +
+ggplot(plot_frame, aes(x=genotype, y=response, color = group, shape = group, group = group)) +
+  geom_errorbar(aes(ymin = response - SE, ymax = response + SE), width = 0.1) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  labs(x = "Genotype", y = "Percent Mated") +
+  scale_color_manual(values = c("#bb4444","#55acee")) +
+  scale_shape_manual(values = c(15,16)) +
+  guides(shape = FALSE) +
   theme_bw()
 
+# Running a combined model:
+coxph_latency_combined_interaction <- coxph(formula = Surv(latency, mated)
+                                      ~ male*female,
+                                      data = ncsi)
+anova(coxph_latency_combined_interaction)
+# Coxme effect of cross:
+coxme_latency <- coxme(formula = Surv(latency, mated) ~ cross + (1|block), data = ncsi)
+coxme_latency
+emmeans(coxme_latency, ~cross, type = "response")
+pairs(emmeans(coxme_latency, ~cross, type = "response"), adjust = "none")
+
+# Male and female effects:
+coxme_latency_combined_interaction <- coxme(formula = Surv(latency, mated) ~ male*female + (1|block), data = ncsi)
+coxme_latency_interaction
+summary(coxme_latency_interaction)
+anova(coxme_latency_combined_interaction, coxph_latency_combined_interaction)
+
+emmeans(coxme_latency_interaction, ~male, type = "response")
+pairs(emmeans(coxme_latency_interaction, ~male, type = "response"))
+emmeans(coxme_latency_interaction, ~female, type = "response")
+pairs(emmeans(coxme_latency_interaction, ~female, type = "response"))
+
+# Profile Plot
+plot_frame_female <- as.data.frame(emmeans(coxme_latency_interaction, ~female, type = "response"))
+colnames(plot_frame_female)[1] <- "genotype"
+plot_frame_female$group <- "female"
+plot_frame_male <- as.data.frame(emmeans(coxme_latency_interaction, ~male, type = "response"))
+colnames(plot_frame_male)[1] <- "genotype"
+plot_frame_male$group <- "male"
+plot_frame <- bind_rows(plot_frame_female, plot_frame_male)
+
+ggplot(plot_frame, aes(x=genotype, y=response, color = group, shape = group, group = group)) +
+  geom_errorbar(aes(ymin = response - SE, ymax = response + SE), width = 0.1) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  labs(x = "Genotype", y = "Latency Estimate") +
+  scale_color_manual(values = c("#bb4444","#55acee")) +
+  scale_shape_manual(values = c(15,16)) +
+  guides(shape = FALSE) +
+  theme_bw()
+
+# Block by block comparison plot:
+ggplot(data = ncsi[ncsi$latency != 180,], aes(x = cross, y = latency, fill = male)) +
+  geom_boxplot() +
+  facet_wrap(~block) +
+  theme_bw() +
+  coord_flip()
+
 # Combined blocks
-ggplot(data = ncsi, aes(x = cross, y = latency, fill = male)) +
+ggplot(data = ncsi[ncsi$latency != 180,], aes(x = cross, y = latency, fill = male)) +
   geom_boxplot() +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip()
 
 # Correlation between blocks:
 
@@ -445,7 +583,7 @@ ncsi$failure == 1 # Double checking that all failures are removed:
 # Removing the vials for which they didn't mate:
 ncsi <- subset(ncsi, mating_duration > 0)
 ncsi$mating_duration > 0
-View(ncsi)
+#View(ncsi)
 head(ncsi, n = 400)
 dim(ncsi) # 503 mated
 
@@ -453,7 +591,6 @@ hist(ncsi$mating_duration, breaks = 100) # Clear outliers here
 # Looking for outliers based on QQ residuals:
 lm_mating_duration <- lm(mating_duration ~ cross, data = ncsi)
 plot(lm_mating_duration, 2) # Q-Q Plot
-boxplot(ncsi$mating_duration)
 
 # Removing Outliers for mating duration:
 # Vial 269 = 2 minutes
@@ -464,64 +601,109 @@ ncsi <- subset(ncsi, id != c(269,302,436))
 hist(ncsi$mating_duration, breaks = 100) # Clear outliers here
 lm_mating_duration <- lm(mating_duration ~ cross, data = ncsi)
 plot(lm_mating_duration, 2) # Q-Q Plot
-boxplot(ncsi$mating_duration)
+
+# Hypothesis test for homogeneity of variances among male and female factor levels
+# Levene's test reveals that the null hypothesis of equal variances among male factor level mating duration measures
+# is strongly rejected. As the mean mating duration increases so does the population variance
+# We can therefore log transform reducing the heterogeneity of variances of mating duration measures among populations
+levene_test(log(mating_duration) ~ male, data = ncsi, center = median)
+ggplot(aes(x = male, y = log(mating_duration)), data = ncsi) +
+  geom_boxplot() # looks better, let's use the log of mating duration from now on
+
 
 # MATING DURATION BLOCK 1:
 # Effect of cross:
-lm_mating_duration_b1 <- lm(mating_duration ~ cross,
+lm_mating_duration_b1 <- lm(log(mating_duration) ~ cross,
                             data = ncsi[ncsi$block==1,])
 summary(lm_mating_duration_b1)
+anova(lm_mating_duration_b1)
 
 # Effect of male and female:
-lm_mating_duration_b1_interaction <- lm(mating_duration ~ male*female,
+lm_mating_duration_b1_interaction <- lm(log(mating_duration) ~ male*female,
                             data = ncsi[ncsi$block==1,])
-summary(lm_mating_duration_b1_interaction) # Really strong male effectss of mating duration and strong LHm female effects of mating duration
-anova(lm_mating_duration_b1_interaction)
-
-emmeans(lm_mating_duration_b1_interaction, ~male)
+summary(lm_mating_duration_b1_interaction) # Really strong male effects of mating duration and strong LHm female effects of mating duration
+anova(lm_mating_duration_b1_interaction, test = "F")
+emmeans(lm_mating_duration_b1_interaction, ~male, type = "response")
 pairs(emmeans(lm_mating_duration_b1_interaction, ~male))
+emmeans(lm_mating_duration_b1_interaction, ~female, type = "response")
+pairs(emmeans(lm_mating_duration_b1_interaction, ~female))
 
+# Profile Plot
+plot_frame_female <- as.data.frame(emmeans(lm_mating_duration_b1_interaction, ~female, type = "response"))
+colnames(plot_frame_female)[1] <- "genotype"
+plot_frame_female$group <- "female"
+plot_frame_male <- as.data.frame(emmeans(lm_mating_duration_b1_interaction, ~male, type = "response"))
+colnames(plot_frame_male)[1] <- "genotype"
+plot_frame_male$group <- "male"
+plot_frame <- bind_rows(plot_frame_female, plot_frame_male)
+
+ggplot(plot_frame, aes(x=genotype, y=response, color = group, shape = group, group = group)) +
+  geom_errorbar(aes(ymin = response - SE, ymax = response + SE), width = 0.1) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  labs(x = "Genotype", y = "Mating Duration (Minutes)") +
+  scale_color_manual(values = c("#bb4444","#55acee")) +
+  scale_shape_manual(values = c(15,16)) +
+  guides(shape = FALSE) +
+  theme_bw()
 # MATING DURATION BLOCK 2:
 # Effect of cross:
-lm_mating_duration_b2 <- lm(mating_duration ~ cross,
+lm_mating_duration_b2 <- lm(log(mating_duration) ~ cross,
                             data = ncsi[ncsi$block==2,])
 summary(lm_mating_duration_b2)
 
 # Effect of male and female:
-lm_mating_duration_b2_interaction <- lm(mating_duration ~ male*female,
+lm_mating_duration_b2_interaction <- lm(log(mating_duration) ~ male*female,
                                         data = ncsi[ncsi$block==2,])
 summary(lm_mating_duration_b2_interaction) # Really strong male effects of mating duration. Effect of LHm female disappeared from block 2
 anova(lm_mating_duration_b2_interaction)
-emmeans(lm_mating_duration_b2_interaction, ~male)
+emmeans(lm_mating_duration_b2_interaction, ~male, type = "response")
 pairs(emmeans(lm_mating_duration_b2_interaction, ~male))
 
 # Comparing blocks visually with boxplots:
 ggplot(data = ncsi, aes(x = cross, y = mating_duration, fill = male)) +
   geom_boxplot() +
   theme_classic() +
+  coord_flip() +
   facet_wrap(~block)
 
-# Comparing blocks visually with Heatmaps:
-mating_duration_plotframe_b1 <- as.data.frame(aggregate(mating_duration~male+female, data = ncsi[ncsi$block==1,], FUN = mean))
-mating_duration_plotframe_b2 <- as.data.frame(aggregate(mating_duration~male+female, data = ncsi[ncsi$block==2,], FUN = mean))
-
-mating_duration_plotframe_b2 %>%
-  arrange(male) %>%
-  mutate(female = factor(female, levels=c("Val","Dhm","LHm","IV"))) %>%
-  ggplot(aes(x = male, y = female)) +
-  geom_raster(aes(fill = mating_duration)) +
-  scale_fill_gradient(low = "grey100", high = "red") +
-  labs(x = "Male Genotype", y = "Female Genotype", fill = "Mating\nDuration\n(min)") +
-  theme_bw() +
-  scale_x_discrete(position = "top")
 # Combined block analysis
-lmer_mating_duration <- lmer(mating_duration ~ male*female + (1|block),
+lmer_mating_duration <- lmer(log(mating_duration) ~ male*female + (1|block),
      data = ncsi)
 summary(lmer_mating_duration)
 anova(lmer_mating_duration)
 
+emmeans(lmer_mating_duration, ~male, type = "response")
+pairs(emmeans(lmer_mating_duration, ~male, type = "response"))
+emmeans(lmer_mating_duration, ~ female, type = "response")
+pairs(emmeans(lmer_mating_duration, ~female, type = "response"))
+
+ggplot(data = ncsi, aes(x = cross, y = mating_duration, fill = male)) +
+  geom_boxplot() +
+  theme_classic() +
+  coord_flip()
+
+# Profile plot:
+plot_frame_female <- as.data.frame(emmeans(lmer_mating_duration, ~female, type = "response"))
+colnames(plot_frame_female)[1] <- "genotype"
+plot_frame_female$group <- "female"
+plot_frame_male <- as.data.frame(emmeans(lmer_mating_duration, ~male, type = "response"))
+colnames(plot_frame_male)[1] <- "genotype"
+plot_frame_male$group <- "male"
+plot_frame <- bind_rows(plot_frame_female, plot_frame_male)
+
+ggplot(plot_frame, aes(x=genotype, y=response, color = group, shape = group, group = group)) +
+  geom_errorbar(aes(ymin = response - SE, ymax = response + SE), width = 0.1) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  labs(x = "Genotype", y = "Mating Duration (Minutes)") +
+  scale_color_manual(values = c("#bb4444","#55acee")) +
+  scale_shape_manual(values = c(15,16)) +
+  guides(shape = FALSE) +
+  theme_bw()
+
 # Finally lets compare repeatability of mating duration measures between blocks:
-plot(ncsi_b1$mating_duration, ncsi_b2$mating_duration,
+plot(ncsi_b1$mating_duration[ncsi$mating_duration > 0], ncsi_b2$mating_duration[ncsi$mating_duration > 0],
      xlim = c(0,40), ylim = c(0,40)) # correlation if i remove all the failures and non-maters it looks like
 anova(lm_mating_duration_b1_interaction,lm_mating_duration_b2_interaction)
 

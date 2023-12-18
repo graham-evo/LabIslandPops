@@ -29,6 +29,9 @@ pmpz_b2$block <- 2
 
 # Combining both blocks into a single data frame:
 pmpz <- bind_rows(pmpz_b1, pmpz_b2) # Progeny isn't in our first data frame which is why all progeny numbers coerced into NAs
+tail(pmpz)
+head(pmpz)
+dim(pmpz)
 
 # Let's first define our factors:
 pmpz$female <- factor(pmpz$female,
@@ -57,30 +60,173 @@ cumulative_eggs <- pmpz %>%
   summarise(eggs = sum(eggs)) %>%
   ungroup()
 
-# And also remove any females for which less than 10 eggs were laid (assuming a non-successful mating)
+# And also remove any females for which less than 10 eggs over 4 days were laid (assuming a non-successful mating)
 dim(cumulative_eggs)
-pmpz <- subset(cumulative_eggs, eggs > 10)
+cumulative_eggs <- subset(cumulative_eggs, eggs > 10)
 dim(cumulative_eggs)
+tail(cumulative_eggs)
 
 # Let's look at the egg count distributions of each of our crosses:
-hist(cumulative_eggs$eggs, breaks = 100)
+hist((cumulative_eggs$eggs), breaks = 100)
+ggplot(aes(x = eggs, y = cross, fill = male), data = cumulative_eggs) +
+  geom_boxplot()
 egg_dist <- ggplot(data = cumulative_eggs, aes(eggs, fill = cross)) +
   geom_density() +
-  facet_wrap(~cross)
+  facet_wrap(~cross + block)
 
-# Running a model looking at total eggs:
-total_eggs_lm <- lm(eggs ~ cross + male + female, data = cumulative_eggs)
-summary(total_eggs_lm)
-anova(total_eggs_lm)
+# CUMULATIVE EGG LAYING BLOCK 1 ANALYSIS:
+hist((cumulative_eggs[cumulative_eggs$block==1,]$eggs), breaks = 100)
+shapiro_test(cumulative_eggs[cumulative_eggs$block==1,]$eggs) 
+lm_total_eggs_b1 <- lm(eggs ~ male*female,
+                       data = cumulative_eggs[cumulative_eggs$block==1,])
+summary(lm_total_eggs_b1)
+anova(lm_total_eggs_b1) # Strong female effect across all four days of egg laying
 
-emmeans(total_eggs_lm, ~cross, type="response")
-pairs(emmeans(total_eggs_lm, ~cross, type="response"))
+emmeans(lm_total_eggs_b1, ~male, type="response")
+pairs(emmeans(lm_total_eggs_b1, ~male, type="response"))
+emmeans(lm_total_eggs_b1, ~female, type = "response")
+pairs(emmeans(lm_total_eggs_b1, ~female, type = "response"))
 
-plot_frame <- as.data.frame(emmeans(total_eggs_lm, ~cross + female + male, type="response"))
+# Effect of Cross:
+lm_total_eggs_b1 <- lm(eggs ~ cross + male*female,
+                       data = cumulative_eggs[cumulative_eggs$block==1,])
+summary(lm_total_eggs_b1)
+anova(lm_total_eggs_b1)
 
-ggplot(data = plot_frame, aes(x = cross,  y = emmean, color = female)) +
-  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin=emmean-SE)) +
+emmeans(lm_total_eggs_b1, ~male + female, type="response")
+pairs(emmeans(lm_total_eggs_b1, ~male + female, type="response"))
+
+# CUMULATIVE EGG LAYING BLOCK 2 ANALYSIS:
+hist((cumulative_eggs[cumulative_eggs$block==2,]$eggs),breaks = 100)
+shapiro_test(cumulative_eggs[cumulative_eggs$block==2,]$eggs) # Not quite normally distributed
+# Effect of Male and Female:
+lm_total_eggs_b2 <- lm(eggs ~ male*female,
+                       data = cumulative_eggs[cumulative_eggs$block==2,])
+summary(lm_total_eggs_b2)
+anova(lm_total_eggs_b2)
+
+emmeans(lm_total_eggs_b2, ~female, type="response")
+pairs(emmeans(lm_total_eggs_b2, ~female, type="response"))
+emmeans(lm_total_eggs_b2, ~male, type="response")
+pairs(emmeans(lm_total_eggs_b2, ~male, type="response"))
+
+# Effect of Cross:
+lm_total_eggs_b2 <- lm(eggs ~ cross + male*female,
+                       data = cumulative_eggs[cumulative_eggs$block==2,])
+summary(lm_total_eggs_b2)
+anova(lm_total_eggs_b2)
+
+emmeans(lm_total_eggs_b2, ~male + female, type="response")
+pairs(emmeans(lm_total_eggs_b2, ~male + female, type="response"))
+
+# Comparing Blocks:
+# Starting by comparing blocks by all four days of egg laying
+lm_eggs <- lm(eggs ~ block + male + female, data = cumulative_eggs)
+summary(lm_eggs) # There is a significant effect of block across all four days of egg laying
+anova(lm_eggs)
+plot(cumulative_eggs[cumulative_eggs$block == 1,]$eggs, cumulative_eggs[cumulative_eggs$block == 2,]$eggs)
+
+# Looking at the differences between blocks at just the FIRST DAY OF EGG LAYING:
+hist(pmpz[pmpz$day==1,]$eggs)
+lm_day1_eggs <- lm(eggs ~ block + male + female, data = pmpz[pmpz$day==1,])
+summary(lm_day1_eggs)
+anova(lm_day1_eggs)
+
+emmeans(lm_day1_eggs, ~block + male + female, type = "response")
+pairs(emmeans(lm_day1_eggs, ~block, type = "response"))
+
+# Proper mixed effects model:
+lmer_day1_eggs <- lm(eggs ~ male + female, data = subset(pmpz, day == 1 & block == 1))
+anova(lmer_day1_eggs)
+lmer_day1_eggs <- lmer(eggs ~ cross + male + female + (1|block), data = pmpz[pmpz$day==1,])
+anova(lmer_day1_eggs)
+
+plot_frame <- as.data.frame(emmeans(lmer_day1_eggs, ~cross + male + female, type = "response"))
+ggplot(aes(x = cross, y = emmean, color = male), data = plot_frame) +
   geom_point() +
+  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ))
+
+# SECOND DAY OF EGG LAYING
+hist(pmpz[pmpz$day==2,]$eggs)
+lm_day2_eggs <- lm(eggs ~ block + male + female, data = pmpz[pmpz$day==2,])
+summary(lm_day2_eggs)
+anova(lm_day2_eggs)
+
+emmeans(lm_day2_eggs, ~block + male + female, type = "response")
+pairs(emmeans(lm_day2_eggs, ~block, type = "response"))
+
+# Proper mixed effects model:
+lmer_day2_eggs <- lmer(eggs ~ male + female + (1|block), data = pmpz[pmpz$day==2,])
+anova(lmer_day2_eggs)
+lmer_day2_eggs <- lmer(eggs ~ cross + male + female + (1|block), data = pmpz[pmpz$day==2,])
+anova(lmer_day2_eggs)
+
+plot_frame <- as.data.frame(emmeans(lmer_day2_eggs, ~cross + male + female, type = "response"))
+ggplot(aes(x = cross, y = emmean, color = male), data = plot_frame) +
+  geom_point() +
+  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ))
+
+# THIRD DAY OF EGG LAYING:
+hist(pmpz[pmpz$day==3,]$eggs)
+lm_day3_eggs <- lm(eggs ~ block + male + female, data = pmpz[pmpz$day==3,])
+summary(lm_day3_eggs)
+anova(lm_day3_eggs)
+
+emmeans(lm_day3_eggs, ~block + male + female, type = "response")
+pairs(emmeans(lm_day3_eggs, ~block, type = "response"))
+
+# Proper mixed effects model:
+lmer_day3_eggs <- lmer(eggs ~ male + female + (1|block), data = pmpz[pmpz$day==3,])
+anova(lmer_day3_eggs)
+lmer_day3_eggs <- lmer(eggs ~ cross + male + female + (1|block), data = pmpz[pmpz$day==3,])
+anova(lmer_day3_eggs)
+
+plot_frame <- as.data.frame(emmeans(lmer_day3_eggs, ~cross + male + female, type = "response"))
+ggplot(aes(x = cross, y = emmean, color = female), data = plot_frame) +
+  geom_point() +
+  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ))
+
+# FOURTH DAY OF EGG LAYING
+hist(pmpz[pmpz$day==4,]$eggs)
+lm_day4_eggs <- lm(eggs ~ block + male + female, data = pmpz[pmpz$day==4,])
+summary(lm_day4_eggs)
+anova(lm_day4_eggs)
+
+emmeans(lm_day4_eggs, ~block + male + female, type = "response")
+pairs(emmeans(lm_day4_eggs, ~block, type = "response"))
+
+# Proper mixed effects model:
+lmer_day4_eggs <- lmer(eggs ~ male + female + (1|block), data = pmpz[pmpz$day==4,])
+anova(lmer_day4_eggs)
+lmer_day4_eggs <- lmer(eggs ~ cross + male + female + (1|block), data = pmpz[pmpz$day==4,])
+anova(lmer_day3_eggs)
+
+plot_frame <- as.data.frame(emmeans(lmer_day4_eggs, ~cross + male + female, type = "response"))
+ggplot(aes(x = cross, y = emmean, color = female), data = plot_frame) +
+  geom_point() +
+  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ))
+
+# ONLY FIRST 3 DAYS OF EGG LAYING
+lmer_day1To3_eggs <- lmer(eggs ~ male + female + (1|block), data = pmpz[pmpz$day==c(1,2,3),])
+anova(lmer_day1To3_eggs)
+lmer_day1To3_eggs <- lmer(eggs ~ cross + male + female + (1|block), data = pmpz[pmpz$day==c(1,2,3),])
+anova(lmer_day1To3_eggs)
+
+plot_frame <- as.data.frame(emmeans(lmer_day1To3_eggs, ~cross + male + female, type = "response"))
+ggplot(aes(x = cross, y = emmean, color = female), data = plot_frame) +
+  geom_point() +
+  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ))
+
+# Comparing Blocks:
+plot_frame_b1 <- as.data.frame(emmeans(lm_total_eggs_b1, ~cross + male + female, type="response"))
+plot_frame_b2 <- as.data.frame(emmeans(lm_total_eggs_b2, ~cross + male + female, type="response"))
+
+ggplot() +
+  geom_errorbar(data = plot_frame_b1, aes(x = cross, ymax = emmean+SE, ymin=emmean-SE)) +
+  geom_point(data = plot_frame_b1, aes(x = cross,  y = emmean, color = female)) +
+  geom_errorbar(data = plot_frame_b2, aes(x = cross, ymax = emmean+SE, ymin=emmean-SE), color = "red") +
+  geom_point(data = plot_frame_b2, aes(x = cross,  y = emmean, color = female)) +
+  theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
 # Making Heat Map of Total Eggs Laid:
@@ -96,6 +242,12 @@ heatmap.df %>%
   labs(x = "Male Genotype", y = "Female Genotype", fill = "Eggs\nLaid") +
   theme_bw() +
   scale_x_discrete(position = "top")
+
+# Let's compare blocks:
+eggs_b1 <- as.data.frame(aggregate(eggs ~ cross, FUN = summary, data =  pmpz[pmpz$block == 1,]))
+eggs_b2 <- as.data.frame(aggregate(eggs ~ cross, FUN = summary, data =  pmpz[pmpz$block == 2,]))
+str(eggs_b1)
+plot(eggs_b1$eggs[,4], eggs_b2$eggs[,4])
 
 # Day by day eggs:
 
