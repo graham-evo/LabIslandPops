@@ -136,15 +136,21 @@ emmeans(lm_day1_eggs, ~block + male + female, type = "response")
 pairs(emmeans(lm_day1_eggs, ~block, type = "response"))
 
 # Proper mixed effects model:
-lmer_day1_eggs <- lm(eggs ~ male + female, data = subset(pmpz, day == 1 & block == 1))
+lmer_day1_eggs <- lm(eggs ~ cross + male + female, data = subset(pmpz, day == 1 & block == 2))
 anova(lmer_day1_eggs)
 lmer_day1_eggs <- lmer(eggs ~ cross + male + female + (1|block), data = pmpz[pmpz$day==1,])
+summary(lmer_day1_eggs)
 anova(lmer_day1_eggs)
+
 
 plot_frame <- as.data.frame(emmeans(lmer_day1_eggs, ~cross + male + female, type = "response"))
 ggplot(aes(x = cross, y = emmean, color = male), data = plot_frame) +
   geom_point() +
-  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ))
+  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ), width = 0.2) +
+  scale_y_continuous(limits = c(0,50)) +
+  coord_flip() +
+  theme_classic() +
+  labs(y = "Eggs Laid")
 
 # SECOND DAY OF EGG LAYING
 hist(pmpz[pmpz$day==2,]$eggs)

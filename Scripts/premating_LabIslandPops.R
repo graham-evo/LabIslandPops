@@ -405,7 +405,8 @@ pairs(emmeans(coxph_latency_b1_interaction, ~female))
 ggplot(data = ncsi[ncsi$block==1 & ncsi$latency != 180,], aes(x = cross, y = latency, fill = male)) +
   geom_boxplot() +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip()
 
 # Profile Plot:
 plot_frame_female <- as.data.frame(emmeans(coxph_latency_b1_interaction, ~female, type = "response"))
@@ -621,6 +622,7 @@ anova(lm_mating_duration_b1)
 # Effect of male and female:
 lm_mating_duration_b1_interaction <- lm(log(mating_duration) ~ male*female,
                             data = ncsi[ncsi$block==1,])
+
 summary(lm_mating_duration_b1_interaction) # Really strong male effects of mating duration and strong LHm female effects of mating duration
 anova(lm_mating_duration_b1_interaction, test = "F")
 emmeans(lm_mating_duration_b1_interaction, ~male, type = "response")
