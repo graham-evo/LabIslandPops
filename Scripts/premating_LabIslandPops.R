@@ -209,8 +209,8 @@ ggplot() +
 glmer_willingness_interaction_null <- glm(mated ~ male*female,
                                        family = binomial(),
                                        data = ncsi)
-glmer_willingness_interaction_alt <- mixed(mated ~ male*female + (1|block),
-                                            method = "LRT",
+glmer_willingness_interaction_alt <- glmer(mated ~ male*female + (1|block),
+                                            family = binomial(),
                                             data = ncsi)
 anova(glmer_willingness_interaction_null, glmer_willingness_interaction_alt,
       test = "Chisq")
@@ -377,6 +377,20 @@ ncsi$latency < 0
 ncsi <- subset(ncsi, latency > 0)
 ncsi$latency<0 # negative latency observations removed
 
+hist(sqrt(ncsi$latency), breaks = 100)
+
+# Skip the line above changing all dnmers latency to 180 and run the model below:
+
+lmer_latency <- lmer(sqrt(latency) ~ male*female + (1|block), data = ncsi)
+summary(lmer_latency)
+anova(lmer_latency)
+emmeans(lmer_latency, ~female, type = "response")
+pairs(emmeans(lmer_latency, ~female, type = "response"))
+emmeans(lmer_latency, ~male, type = "response")
+pairs(emmeans(lmer_latency, ~male, type = "response"))
+
+
+
 # LATENCY TO MATE BLOCK 1:
 # Effect of cross:
 coxph_latency_b1 <- 
@@ -409,10 +423,10 @@ ggplot(data = ncsi[ncsi$block==1 & ncsi$latency != 180,], aes(x = cross, y = lat
   coord_flip()
 
 # Profile Plot:
-plot_frame_female <- as.data.frame(emmeans(coxph_latency_b1_interaction, ~female, type = "response"))
+plot_frame_female <- as.data.frame(emmeans(lmer_latency, ~female, type = "response"))
 colnames(plot_frame_female)[1] <- "genotype"
 plot_frame_female$group <- "female"
-plot_frame_male <- as.data.frame(emmeans(coxph_latency_b1_interaction, ~male, type = "response"))
+plot_frame_male <- as.data.frame(emmeans(lmer_latency, ~male, type = "response"))
 colnames(plot_frame_male)[1] <- "genotype"
 plot_frame_male$group <- "male"
 plot_frame <- bind_rows(plot_frame_female, plot_frame_male)
@@ -421,7 +435,7 @@ ggplot(plot_frame, aes(x=genotype, y=response, color = group, shape = group, gro
   geom_errorbar(aes(ymin = response - SE, ymax = response + SE), width = 0.1) +
   geom_line(linewidth = 0.8) +
   geom_point(size = 2.5) +
-  labs(x = "Genotype", y = "Percent Mated") +
+  labs(x = "Genotype", y = "Latency (minutes)") +
   scale_color_manual(values = c("#bb4444","#55acee")) +
   scale_shape_manual(values = c(15,16)) +
   guides(shape = FALSE) +
@@ -517,11 +531,20 @@ ggplot(plot_frame, aes(x=genotype, y=response, color = group, shape = group, gro
 ggplot(data = ncsi[ncsi$latency != 180,], aes(x = cross, y = latency, fill = male)) +
   geom_boxplot() +
   facet_wrap(~block) +
-  theme_bw() +
+  theme_classic() +
   coord_flip()
 
+# only crosses for which IV or LHm males or females are involved:
+IV_LHm <- subset(ncsi, cross %in% c("IV_IV","IV_LHm", "IV_Val","IV_Dhm","Val_LHm","Dhm_LHm","LHm_LHm","LHm_IV","Val_IV","Dhm_IV"))
+IV_LHm$cross <- factor(IV_LHm$cross, levels = c("IV_IV","IV_LHm", "IV_Val","IV_Dhm","LHm_LHm","LHm_IV","Val_LHm","Val_IV","Dhm_IV","Dhm_LHm"))
+
 # Combined blocks
-ggplot(data = ncsi[ncsi$latency != 180,], aes(x = cross, y = latency, fill = male)) +
+ggplot(data = IV_LHm[IV_LHm$latency != 180,], aes(x = cross, y = latency, fill = male)) +
+  geom_boxplot() +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  coord_flip()
+ggplot(data = ncsi, aes(x = cross, y = latency, fill = male)) +
   geom_boxplot() +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
@@ -670,7 +693,7 @@ ggplot(data = ncsi, aes(x = cross, y = mating_duration, fill = male)) +
   facet_wrap(~block)
 
 # Combined block analysis
-lmer_mating_duration <- lmer(log(mating_duration) ~ male*female + (1|block),
+lmer_mating_duration <- lmer(log(mating_duration) ~ male+female + (1|block),
      data = ncsi)
 summary(lmer_mating_duration)
 anova(lmer_mating_duration)

@@ -170,8 +170,11 @@ anova(lmer_day2_eggs)
 plot_frame <- as.data.frame(emmeans(lmer_day2_eggs, ~cross + male + female, type = "response"))
 ggplot(aes(x = cross, y = emmean, color = male), data = plot_frame) +
   geom_point() +
-  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ))
-
+  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ), width = 0.2) +
+  scale_y_continuous(limits = c(0,50)) +
+  coord_flip() +
+  theme_classic() +
+  labs(y = "Eggs Laid")
 # THIRD DAY OF EGG LAYING:
 hist(pmpz[pmpz$day==3,]$eggs)
 lm_day3_eggs <- lm(eggs ~ block + male + female, data = pmpz[pmpz$day==3,])
@@ -223,6 +226,20 @@ ggplot(aes(x = cross, y = emmean, color = female), data = plot_frame) +
   geom_point() +
   geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ))
 
+# All days of egg laying:
+lmer_eggs <- lmer(eggs ~ male + female + (1|block), data = cumulative_eggs)
+anova(lmer_eggs)
+lmer_eggs <- lmer(eggs ~ cross + male + female + (1|block), data = cumulative_eggs)
+anova(lmer_eggs)
+
+plot_frame <- as.data.frame(emmeans(lmer_eggs, ~cross + male + female, type = "response"))
+ggplot(aes(x = cross, y = emmean, color = male), data = plot_frame) +
+  geom_point() +
+  geom_errorbar(aes(x = cross, ymax = emmean+SE, ymin = emmean-SE ), width = 0.2) +
+  #scale_y_continuous(limits = c(0,50)) +
+  coord_flip() +
+  theme_classic() +
+  labs(y = "Eggs Laid")
 # Comparing Blocks:
 plot_frame_b1 <- as.data.frame(emmeans(lm_total_eggs_b1, ~cross + male + female, type="response"))
 plot_frame_b2 <- as.data.frame(emmeans(lm_total_eggs_b2, ~cross + male + female, type="response"))
