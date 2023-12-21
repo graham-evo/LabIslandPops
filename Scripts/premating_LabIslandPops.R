@@ -26,7 +26,7 @@ library(tidyverse)
 
 # DATA CLEANING/MANAGEMENT:
 ##----------------------------
-ncsi_b1 <- read.table("LabIslandPops_premating_R.txt", # August Experiment
+ncsi_b1 <- read.table("premating_aug23.txt", # August Experiment
                    header = TRUE,
                    comment.char = "",
                    na.strings = "#N/A")

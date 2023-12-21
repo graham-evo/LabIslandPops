@@ -8,7 +8,7 @@ library(emmeans)
 library(tidyverse)
 
 # Read in egg count data
-pmpz_b1 <- read.table(file = "LabIslandCrosses_Postmating_R.txt", # September block
+pmpz_b1 <- read.table(file = "postmating_aug23.txt", # September block
                    header = TRUE,
                    comment.char = "",
                    na.strings = "#N/A")
